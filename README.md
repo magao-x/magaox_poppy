@@ -22,14 +22,13 @@ The notebooks will call for additional FITS files that are not hosted online. Th
 
 Please note that different notebooks will have different setups.
 
-The notebooks to focus on are:
+The notebook(s) to focus on are:
 - <b>magaox_surfaceCheck</b>: Investigates the surface quality of each optical element as it contributes to the vAPP PSF dark hole contrast level
-- <b>magaoxFunctions.py</b>: Contains full MagAO-X design but no aberrated surfaces. Will use the same masks.
 
 All the other notebooks are present as references and are not necessary for understanding the two major notebooks mentioned above.
 
 ## Warnings, Disclaimers
-A lot of the code will have walls of warnings. They are not detrimental to the operation.
+A lot of the code may have walls of warnings. They are not detrimental to the operation. Later notebooks have "silenced" most of the wall of warnings.
 
 The bare minimum files are posted. If there is a file missing in the repository that is mandatory for calculating the science PSFs, please contact me and I will upload it.
 
