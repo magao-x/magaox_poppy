@@ -22,7 +22,7 @@
 5,K-1,mirror,0,0.02,0.025,data/PSDset5/,flat_l100_2,opd,nanometers,,
 6,K-2,mirror,0,0.025,0.025,data/PSDset5/,flat_l100_3,opd,nanometers,,
 7,K-3,mirror,0,0.025,0.025,data/PSDset5/,flat_l100_4,opd,nanometers,,
-8,F11,fplane,0,0.02,0,none,none,none,none,0.15491726,includes correction 
+8,F11,fplane,0,0.17491726,0,none,none,none,none,0.15491726,includes correction 
 9,F-2,mirror,0,0.033204,0.025,data/PSDset5/,flat_l100_1,opd,nanometers,,
 10,OAP-0,mirror,0.14355,0.110497,0.0254,data/PSDset5/,oap_HP_0,opd,nanometers,,
 11,Woofer,DM,0,0.144693,0.025,none,none,none,none,,
@@ -30,22 +30,22 @@
 13,F-3,mirror,0,0.069174,0.025,data/PSDset5/,flat_l100_5,opd,nanometers,,
 14,F16,fplane,0,0.141562,0,none,none,none,none,0.000143764,includes correction 
 15,OAP-2,mirror,0.3038,0.303808,0.0254,data/PSDset5/,oap_HP_2,opd,nanometers,,
-16,Tweeter,DM,0,0.303808,0.025,none,none,opd,meters,code overwrites surf PSD,
+16,Tweeter,DM,0,0.303808,0.025,none,none,opd,meters,,code overwrites surf PSD
 17,OAP-3,mirror,1.0716,1.071599,0.0254,data/PSDset5/,oap_HP_3,opd,nanometers,,
 18,F-4,mirror,0,0.412515,0.025,data/PSDset5/,flat_l100_6,opd,nanometers,,
 19,F-5,mirror,0,0.5737,0.025,data/PSDset5/,flat_l100_7,opd,nanometers,,
-20,F57,fplane,0,0.64034,0,none,none,none,none,-6.19E-06,includes correction 
+20,F57,fplane,0,0.085377813,0,none,none,none,none,-7.12E-05,includes correction 
 21,OAP-4,mirror,0.513,0.513026,0.0254,data/PSDset5/,oap_HP_4,opd,nanometers,,
 22,F-6,mirror,0,0.231649,0.025,data/PSDset5/,flat_l100_8,opd,nanometers,,
-23,vAPP-trans,vapp,0,0.281359,0.004444987,data/coronagraph/,none,trans,none,code overwrites surf PSD,
-24,vAPP-opd,vapp,0,0,0.004444987,data/coronagraph/,none,opd,meters,code overwrites surf PSD,
+23,vAPP-trans,vapp,0,0.281359,0.004444987,data/coronagraph/,none,trans,none,,code overwrites surf PSD
+24,vAPP-opd,vapp,0,0,0.004444987,data/coronagraph/,none,opd,meters,,code overwrites surf PSD
 25,OAP-5,mirror,0.621,0.620944,0.0254,data/PSDset5/,oap_HP_5,opd,nanometers,,
 26,F-7,mirror,0,0.471013,0.025,data/PSDset5/,flat_l100_9,opd,nanometers,,
-27,F69,fplane,0,0.150008,0,none,none,none,none,-2.66E-05,includes correction 
+27,F69,fplane,0,0.149960367,0,none,none,none,none,-4.76E-05,includes correction 
 28,OAP-6,mirror,0.621,0.620969,0.0254,data/PSDset5/,oap_HP_6,opd,nanometers,,
 29,LyotPlane,lyot,0,0.621031,none,none,none,none,,,
 30,F-11,mirror,0,0.231596,0.025,data/PSDset5/,flat_l100_10,opd,nanometers,,
 31,OAP-7,mirror,0.621,0.389425,0.0254,data/PSDset5/,oap_HP_7,opd,nanometers,,
 32,F-12,mirror,0,0.401103,0.025,data/PSDset5/,flat_l100_11,opd,nanometers,,
-33,F69Sci,sci,0,0.219859,0,none,none,none,none,-5.16E-05,includes correction 
-34,noneRemoved,ref,0,0,0,none,none,none,none,Reference case,
+33,F69Sci,sci,0,0.219847623,0,none,none,none,none,-1.14E-05,includes correction 
+34,noneRemoved,ref,0,0,0,none,none,none,none,,Reference case
