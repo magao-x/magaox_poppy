@@ -31,16 +31,24 @@ class surfPSD:
     def open_surf(self, fileloc, surf_units):
         # to use if opening the data from a FITS file
         # assumes the data is efficiently filled (no zero col/row)
-        # unpack the fits file content
-        self.data = (fits.open(fileloc)[0].data*surf_units).to(u.mm) # convert to mm from whatever it is
+        self.data = (fits.open(fileloc)[0].data*surf_units).to(u.mm) # convert to mm internally
         # unload data from header
         hdr = fits.open(fileloc)[0].header
         self.wavelen = hdr['WAVELEN'] * u.m
         self.latres = hdr['LATRES'] * u.m / u.pix
         self.rpix_full = hdr['NAXIS1'] / 2 # full diameter is 1 side of the data
     
+    def open_mask(self, fileloc):
+        mask = fits.open(fileloc)[0].data
+        if mask.shape != self.data.shape:
+            raise Exception('Mask and data are not compatiable (shape)')
+        else:
+            self.mask = mask.astype(bool)
+            self.npix_diam = int(np.sum(mask[int(mask.shape[0]/2)]))
+            self.diam_ca = (self.npix_diam * u.pix * self.latres).to(u.mm)
+    
     def load_surf(self, data, wavelen, latres):
-        # to use if data has already been loaded in
+        # to use if data has already been loaded into environment
         if hasattr(data, 'unit'): # set to data if there are units
             self.data = data
         else: # exit if there are no units
@@ -48,94 +56,35 @@ class surfPSD:
         self.wavelen = wavelen
         self.latres = latres
         self.rpix_full = np.shape(data)[0]/2
+    
+    def load_mask(self, mask):
+        if mask.shape != self.data.shape:
+            raise Exception('Mask and data are not compatiable (shape)')
+        else:
+            self.mask = mask.astype(bool)
+            self.npix_diam = int(np.sum(mask[int(mask.shape[0]/2)]))
+            self.diam_ca = (self.npix_diam * u.pix * self.latres).to(u.mm)
         
-    def calc_psd_new(self, save_psd=False):
-        # NEEDS EDITING
-        # calculate the power optic
+    def calc_psd(self, var_unit = u.nm, save_psd=False):
         # note - data MUST be even, square, and efficiently filled.
         optic = self.data.value
 
-        # Calculate the number of pixel diameter from CA
-        npix_diam = int(np.shape(optic)[0]) # integer required for hannWin
-        # npix_diam must be even to get the padding to work correctly
-        if npix_diam %2 != 0: # if odd
-            npix_diam -= 1 # decrease by 1 to force to even
-        self.npix_diam = npix_diam
-        self.diam_ca = (npix_diam * u.pix * self.latres).to(u.mm)
-        
-        # Data summ
-        ap_clear = np.zeros_like(optic, dtype=np.uint8)
-        ca_coords = draw.circle(self.rpix_full, self.rpix_full, radius=(npix_diam/2))
-        ap_clear[ca_coords] = True
-
         # calculate the mean and variance of the active region of data
-        ap_active = optic * ap_clear
-        ap_active_coords = optic[ap_clear==True]
+        ap_active = optic * self.mask
+        ap_active_coords = optic[self.mask==True]
         ap_avg = np.mean(ap_active_coords)
-        self.var = (np.var(ap_active_coords)*(self.data.unit**2)).to(u.nm**2)
+        self.var = (np.var(ap_active_coords)*(self.data.unit**2)).to(var_unit**2)
 
         # Subtract the mean from the data
-        ap_submean = (ap_active - ap_avg) * ap_clear
+        ap_submean = (ap_active - ap_avg) * self.mask
 
         # build the Hann 2D window
-        hannWin = han2d((npix_diam, npix_diam))
-        # zero-pad the window to fit with the full aperture dimensions
-        pad_side = np.int((self.data.shape[0] - npix_diam)/2)
-        pad_hann = np.pad(hannWin, pad_side, pad_with) * ap_clear
-
-        # oversample the windowed data and take FFT for the raw power
-        optic_ovs = zeroPadOversample(ap_submean * pad_hann, 
-                                          np.int(self.oversamp/getSampSide(ap_clear)))*self.data.unit
-        FT_wf = np.fft.fftshift(np.fft.fft2(optic_ovs)) 
-        self.psd_raw = np.real(FT_wf*np.conjugate(FT_wf))/(self.data.unit**2)
+        hannWin = han2d((self.npix_diam, self.npix_diam)) * self.mask
         
-        # The raw power is uncalibrated, need to normalize then multiply by variance.
-        self.delta_k = 1/(self.oversamp*self.diam_ca/self.npix_diam)
-        self.psd_norm = self.psd_raw / (np.sum(self.psd_raw)*(self.delta_k**2))
-        self.psd_cal = self.psd_norm * self.var
-        
-        # save the PSD file
-        if save_psd == True:
-            print('Saving the calibrated PSD into FITS file is not a ready made feature, please check later.')
-    
-    def calc_psd(self, save_psd=False):
-        # calculate the power optic
-        # note - data MUST be even and square.
-        optic = self.data.value
-
-        # Calculate the number of pixel diameter from CA
-        npix_diam = np.int(self.data.shape[0]*self.ca_percent/100) # integer required for hannWin
-        # npix_diam must be even to get the padding to work correctly
-        if npix_diam %2 != 0: # if odd
-            npix_diam -= 1 # decrease by 1 to force to even
-        self.npix_diam = npix_diam
-        self.diam_ca = (npix_diam * u.pix * self.latres).to(u.mm)
-        
-        # Create the clear aperture mask based on the clear aperture percent
-        # can I rewrite this to use the mask?
-        ap_clear = np.zeros_like(optic, dtype=np.uint8)
-        ca_coords = draw.circle(self.rpix_full, self.rpix_full, radius=(npix_diam/2))
-        ap_clear[ca_coords] = True
-
-        # calculate the mean and variance of the active region of data
-        ap_active = optic * ap_clear
-        ap_active_coords = optic[ap_clear==True]
-        ap_avg = np.mean(ap_active_coords)
-        self.var = (np.var(ap_active_coords)*(self.data.unit**2)).to(u.nm**2)
-
-        # Subtract the mean from the data
-        ap_submean = (ap_active - ap_avg) * ap_clear
-
-        # build the Hann 2D window
-        hannWin = han2d((npix_diam, npix_diam))
-        # zero-pad the window to fit with the full aperture dimensions
-        pad_side = np.int((self.data.shape[0] - npix_diam)/2)
-        pad_hann = np.pad(hannWin, pad_side, pad_with) * ap_clear
-
-        # oversample the windowed data and take FFT for the raw power
-        optic_ovs = zeroPadOversample(ap_submean * pad_hann, 
-                                          np.int(self.oversamp/getSampSide(ap_clear)))*self.data.unit
-        FT_wf = np.fft.fftshift(np.fft.fft2(optic_ovs)) 
+        # zero pad to oversample then start taking FT's
+        pad_side = int((self.oversamp - self.mask.shape[0])/2)
+        optic_ovs = np.pad(hannWin*ap_submean, pad_side, pad_with)
+        FT_wf = np.fft.fftshift(np.fft.fft2(optic_ovs)) # this comes out unitless
         self.psd_raw = np.real(FT_wf*np.conjugate(FT_wf))/(self.data.unit**2)
         
         # The raw power is uncalibrated, need to normalize then multiply by variance.
