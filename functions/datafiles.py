@@ -24,7 +24,7 @@ from skimage.draw import draw
 ############################################
 # FILE HANDLING
 
-def open_datx(datx_file_loc, diam_ca100 = 50*u.mm):
+def open_datx(datx_file_loc, diam_ca100 = 50*u.mm, set_surf_unit = u.micron):
     # opens a .datx file and gets the surface. Adapted from Kyle Van Gorkom.
     h5file = h5py.File(datx_file_loc) # must be .datx filetype for hdf5
     
@@ -38,41 +38,68 @@ def open_datx(datx_file_loc, diam_ca100 = 50*u.mm):
     mask[surface == surface_attrs['No Data']] = 0
     surface[~mask] = 0 # Apply mask (will always be true)
     
-    # compile parameters of the surface data
-    surf_parms = {'wavelength': surface_attrs['Wavelength'][0] * u.m, # units: m
-                  'scale_factor': surface_attrs['Interferometric Scale Factor'][0],
-                  'units': surface_attrs['Unit'][0],
-                  'lateral_res': surface_attrs['X Converter'][0][2][1] * u.m/u.pix} # m/pix}
+    # compile surface data information
+    wavelen = surface_attrs['Wavelength'][0] * u.m
+    latres = surface_attrs['X Converter'][0][2][1] * u.m/u.pix
+    surfunit = surface_attrs['Unit'][0]
+    scale_factor = surface_attrs['Interferometric Scale Factor'][0]
     
-    # count how many zeros inside the mask based on mask diameters
-    diam_count = (np.amax(np.sum(mask,axis=0)), np.amax(np.sum(mask,axis=1)))
-    surf_parms['diam_pix'] = np.amax(diam_count) * u.pix
-    
+    # set corrections
     # correct the lateral resolution if the .datx file doesn't have any data inside it
-    if surf_parms['lateral_res'] == 0: # this means there was no value inside
-        surf_parms['lateral_res'] = diam_ca100.to(u.m) / surf_parms['diam_pix'] # units: m/pix
-        surf_parms['diam_mm'] = diam_ca100.to(u.mm)
-    else:
-        surf_parms['diam_mm'] = (surf_parms['lateral_res']*surf_parms['diam_pix']).to(u.mm)
+    # diam_pix is not included in surf_parms in case of additional correction side open_datx
+    if latres == 0: # this means there was no value inside
+        diam_count = (np.amax(np.sum(mask,axis=0)), np.amax(np.sum(mask,axis=1)))
+        diam_pix = np.amax(diam_count) * u.pix
+        latres = diam_ca100.to(u.m) / diam_pix # units: m/pix
     
     # Convert the surface unit from fringe waves to microns
-    if surf_parms['units'] == b'Fringes':
-        surf_out = (surface * surf_parms['scale_factor'] * surf_parms['wavelength'].to(u.micron))
-        surf_parms['units'] = str(u.micron)
+    if surfunit == b'Fringes':
+        surf_out = surface * scale_factor * wavelen.to(set_surf_unit)
+        surfunit = str(set_surf_unit)
     else:
         surf_out = surface
     
+    # create and fill the exit parameter dictionary
+    surf_parms = {'label': ['wavelen', 'latres', 'surfunit', 'diam_100'], 
+                  'value': [wavelen, latres, surfunit, diam_ca100], 
+                  'comment': ['Zygo wavelength [{0}]'.format(wavelen.unit), # meters
+                              'Lateral resolution [{0}]'.format(latres.unit), # m/pix
+                              'Surface units',
+                              'Full optic diameter at 100% CA [{0}]'.format(diam_ca100.unit)]}
+
     return surf_out, mask, surf_parms
     
 def write_fits(surface, mask, surf_parms, filename, save_mask=True, surf_nan=False):
     # write specific data to fits file
     header = fits.Header()
-    header['diameter'] = (surf_parms['diam_mm'].value, 'data CA measurement diameter [mm]')
-    header['latres'] = (surf_parms['lateral_res'].value, 'meters/pixel')
-    header['wavelen'] = (surf_parms['wavelength'].value, 'Zygo wavelength [meters]')
+    # fill in header with parameters
+    for j in range(0, len(surf_parms['label'])):
+        label = surf_parms['label'][j]
+        value = surf_parms['value'][j]
+        
+        # save out a particular number
+        if label == 'latres': 
+            latres = value
+        elif label == 'diam_100':
+            diam_100 = value
+        
+        # if unit is included, remove it for header
+        if hasattr(value, 'unit'): 
+            value = value.value
+        
+        comment = surf_parms['comment'][j]
+        header.append((label, value, comment))
+    
+    # calculate data to add to header
+    data_diam_pix = np.amax([np.amax(np.sum(mask,axis=0)), np.amax(np.sum(mask,axis=1))]) * u.pix
+    data_diam = (latres*data_diam_pix).to(diam_100.unit)
+    header['diam_ca'] = (data_diam.value, 'Data diameter at clear aperture [{0}]'.format(data_diam.unit))
+    header['clear_ap'] = ((data_diam/diam_100*100).value, 'Clear aperture [percent]')
+    
     # write mask file
     if save_mask==True:
         fits.writeto(filename + '_mask.fits', mask.astype(int), header, overwrite=True)
+    
     # write surface file
     if surf_nan==True:  # if the surface to be written to FITS should be the masked nan version
         surface = sn_map(surface,mask)
@@ -83,20 +110,22 @@ def write_fits(surface, mask, surf_parms, filename, save_mask=True, surf_nan=Fal
         surf_filename = filename+'_surf'
     if hasattr(surface, 'unit'):
         surf_val = surface.value
-        header['UNITS'] = (str(surface.unit), 'surface units')
     else:
         surf_val = surface
-        header['UNITS'] = (surf_parms['units'], 'surface units')
     fits.writeto(surf_filename + '.fits', surf_val, header, overwrite=True)
 
-def datx2fits(datx_file_loc, filename, diam_ca100=50*u.mm, surf_nan=False):
+def datx2fits(datx_file_loc, filename, diam_ca100=50*u.mm, set_surf_unit=u.micron, surf_nan=False):
     # Shortcut to write the .datx file into fits for the surface and mask
     # assumes that the data in the .datx file does not need edits
-    surface, mask, surf_parms = open_datx(datx_file_loc=datx_file_loc, diam_ca100=diam_ca100)
+    surface, mask, surf_parms = open_datx(datx_file_loc=datx_file_loc, 
+                                          diam_ca100=diam_ca100, 
+                                          set_surf_unit=set_surf_unit)
+                                          
     write_fits(surface, mask, surf_parms, filename, surf_nan=surf_nan)
     
 ############################################
 # INTERPOLATION
+# for when the data is bad on the surface
 
 def sn_map(surface, mask):
     # produce the surface map with nans outside mask
@@ -235,9 +264,9 @@ def doCenterCrop(optic_data,shift):
     crop_data = optic_data[center-shift:center+shift,center-shift:center+shift]
     return crop_data
 
-def show2plots(supertitle, data1, plot1_label, data2, plot2_label, set_dpi=150):
+def show2plots(supertitle, data1, plot1_label, data2, plot2_label, set_figsize=[8,8], set_dpi=150):
     # Shortcut function for 2 plot drawing
-    fig, (ax1, ax2) = plt.subplots(ncols=2, dpi=set_dpi)
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=set_figsize, dpi=set_dpi)
     fig.suptitle(supertitle)
     
     if hasattr(data1, 'unit'):
