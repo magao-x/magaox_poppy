@@ -68,6 +68,33 @@ def open_datx(datx_file_loc, diam_ca100 = 50*u.mm, set_surf_unit = u.micron):
                               'Full optic diameter at 100% CA [{0}]'.format(diam_ca100.unit)]}
 
     return surf_out, mask, surf_parms
+
+
+def open_fits(filename, diam_ca100 = 50*u.mm, set_surf_unit = u.micron):
+    # open related fits file to get specific content out to be compatible with write_fits
+    mask = fits.open(filename+'_mask.fits')[0].data
+    surf = fits.open(filename+'_surf.fits')[0]
+    surf_hdr = surf.header
+    
+    # declaring important components
+    wavelen = surf_hdr['wavelen']*u.m
+    latres = surf_hdr['latres']*u.m/u.pix
+    if surf_hdr['surfunit'] == 'micron':
+        surfunit = u.micron
+    else:
+        surfunit = set_surf_unit
+    
+    # open surface info and apply units
+    surf_data = surf.data*surfunit
+    
+    surf_parms = {'label': ['wavelen', 'latres', 'surfunit', 'diam_100'], 
+                  'value': [wavelen, latres, str(surfunit), diam_ca100], 
+                  'comment': ['Zygo wavelength [{0}]'.format(wavelen.unit), # meters
+                              'Lateral resolution [{0}]'.format(latres.unit), # m/pix
+                              'Surface units',
+                              'Full optic diameter at 100% CA [{0}]'.format(diam_ca100.unit)]}
+                  
+    return surf_data, mask, surf_parms
     
 def write_fits(surface, mask, surf_parms, filename, save_mask=True, surf_nan=False):
     # write specific data to fits file
@@ -162,6 +189,11 @@ def fill_surface(surface, mask_data, ap_clear, ap_coords, method='cubic'):
 
 ############################################
 # MATRIX ADJUSTMENT
+
+def reduce_ca(data, mask, old_ca, new_ca):
+    if old_ca < new_ca:
+        raise Exception('New CA is larger than old CA, fix this')
+    
 
 def mat_tight(data, mask, print_mat=False):
     # make a "tight" matrix by removing the 0 rows and columns
