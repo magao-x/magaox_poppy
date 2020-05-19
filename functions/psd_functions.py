@@ -29,7 +29,7 @@ class surfPSD:
     def open_surf(self, fileloc, surf_units):
         # to use if opening the data from a FITS file
         # assumes the data is efficiently filled (no zero col/row)
-        self.data = (fits.open(fileloc)[0].data*surf_units).to(u.mm) # convert to mm internally
+        self.data = (fits.open(fileloc)[0].data*surf_units).to(u.mm) # convert to mm internally to match with the fourier transform units
         # unload data from header
         hdr = fits.open(fileloc)[0].header
         self.wavelen = hdr['WAVELEN'] * u.m
@@ -61,8 +61,60 @@ class surfPSD:
             self.mask = mask.astype(bool)
             self.npix_diam = int(np.sum(mask[int(mask.shape[0]/2)]))
             self.diam_ca = (self.npix_diam * u.pix * self.latres).to(u.mm)
+            
+    def open_psd(self, psd_fileloc, psd_type, var_unit = u.nm):
+        psd_fits = fits.open(psd_fileloc)[0]
+        hdr = psd_fits.header
+        self.oversamp = hdr['oversamp']
+        self.diam_ca = hdr['diam_ca']*u.mm
+        self.npix_diam = int(hdr['diam_pix'])
+        self.var = hdr['var_tot']*(var_unit**2)
+        self.calc_psd_parameters()
         
-    def calc_psd(self, oversamp, var_unit = u.nm, save_psd=False):
+        # set the PSD variables
+        if psd_type == 'norm':
+            self.psd_norm = psd_fits.data * (self.diam_ca.unit**2)
+            self.psd_cal = self.psd_norm * self.var
+        elif psd_type == 'cal':
+            self.psd_cal = psd_fits.data * (self.diam_ca.unit**2) * (var_unit**2)
+            
+    def load_psd(self, psd_data, psd_type, var):
+        if hasattr(var, 'unit'):
+            self.var = var
+        else:
+            raise Exception('Variance needs units')
+        if hasattr(psd_data, 'unit'):
+            if psd_type=='norm':
+                self.psd_norm=psd_data
+                self.psd_cal = self.psd_norm * var 
+            elif psd_type=='cal':
+                self.psd_cal=psd_data
+                self.psd_norm = self.psd_cal / var
+            elif psd_type=='raw':
+                self.psd_raw=psd_raw
+            else:
+                raise Exception('Type does not match cal, norm, raw; type sent: {0}'.format(psd_type))
+        else:
+            raise Exception('PSD needs units')
+        
+    def load_psd_parameters(self, oversamp, diam_ca, npix_diam, wavelen):
+        self.oversamp = oversamp
+        self.diam_ca = diam_ca
+        self.npix_diam = npix_diam
+        self.wavelen = wavelen
+        self.calc_psd_parameters() # calculate other necessary parameters
+    
+    def calc_psd_parameters(self):
+        self.k_min = 1/self.diam_ca
+        self.k_max = 1/(2*self.diam_ca / self.npix_diam)
+        self.delta_k = 1/(self.oversamp*self.diam_ca/self.npix_diam)
+        
+        # Set full radial frequency range
+        samp_space = self.diam_ca / self.npix_diam
+        ft_freq = np.fft.fftfreq(n=self.oversamp, d=samp_space)
+        self.radialFreq = ft_freq[0:np.int(self.oversamp/2)]
+        
+    def calc_psd(self, oversamp, kmid_ll = 0.1/u.mm, khigh_ll=1/u.mm, var_unit = u.nm):
         self.oversamp = oversamp
         # note - data MUST be even, square, and efficiently filled.
         optic = self.data.value
@@ -86,29 +138,15 @@ class surfPSD:
         self.psd_raw = np.real(FT_wf*np.conjugate(FT_wf))/(self.data.unit**2)
         
         # The raw power is uncalibrated, need to normalize then multiply by variance.
-        self.delta_k = 1/(self.oversamp*self.diam_ca/self.npix_diam)
+        self.calc_psd_parameters() # calculate some basic parameters needed for PSDs and everything
         self.psd_norm = self.psd_raw / (np.sum(self.psd_raw)*(self.delta_k**2))
         self.psd_cal = self.psd_norm * self.var
         
-        # calculate other important k-parameters
-        self.k_min = 1/self.diam_ca
-        self.k_max = 1/(2*self.diam_ca / self.npix_diam)
-        
-        # Set full radial frequency range
-        samp_space = self.diam_ca / self.npix_diam
-        ft_freq = np.fft.fftfreq(n=self.oversamp, d=samp_space)
-        self.radialFreq = ft_freq[0:np.int(self.oversamp/2)]
-        
         # Calculate the RMS based on the k-parameter limits
-        self.rms = self.calc_psd_rms(tgt_low=self.k_min, tgt_high=self.k_max,
-                                     psd_set='cal')
+        self.calc_rms_set(kmid_ll=kmid_ll, khigh_ll=khigh_ll, pwr_opt=self.psd_cal)
         
-        # save the PSD file
-        if save_psd == True:
-            print('Saving the calibrated PSD into FITS file is not a ready made feature, please check later.')
-
-    def check_normpsd(self):
-        var_verify = np.sum(self.psd_norm) * (self.delta_k**2) # unitless and 1
+    def check_normpsd(self, psd_norm):
+        var_verify = np.sum(psd_norm) * (self.delta_k**2) # unitless and 1
         psd_verify = np.allclose(1, var_verify)
         if psd_verify==True:
             print('PSD normalized: var={0:.3f}'.format(var_verify))
@@ -130,6 +168,12 @@ class surfPSD:
         self.psd_cal *= mask
     
     def calc_psd_radial(self, ring_width):
+        # shortcut version for basic code analysis
+        (self.k_radial, self.psd_radial_cal) = self.do_psd_radial(ring_width=ring_width,
+                                                                  psd_data = self.psd_cal)
+
+    def do_psd_radial(self, ring_width, psd_data):
+        # generic version of code if inputting a different ring width and PSD data set
         # make grid for average radial power value
         shift = np.int(self.oversamp/2)
         maskY, maskX = np.ogrid[-shift:shift, -shift:shift]
@@ -137,13 +181,11 @@ class surfPSD:
         # set up ring parameters
         if ring_width % 2 == 0:
             ring_width += 1 # increase by 1 to make it odd
-        self.ring_width = ring_width
         r_halfside = np.int((ring_width-1)/2)
         r = 1
         
         # initialize content
-        mean_psd = [] # initialize empty list of mean PSD values
-        mean_psd2 = []
+        mean_bin = [] # initialize empty list of mean PSD values
         k_val = [] # initialize empty list of spatial frequencies
         
         # chug along through the radial frequency values
@@ -155,29 +197,32 @@ class surfPSD:
             else:
                 if ri > 0:
                     radial_mask = makeRingMask(maskY, maskX, ri, ring_width)
-                    radial_bin = makeRingMaskBin(self.psd_norm.value,radial_mask)
-                    mean_psd.append(np.mean(radial_bin))
-                    radial_bin2 = makeRingMaskBin(self.psd_cal.value, radial_mask)
-                    mean_psd2.append(np.mean(radial_bin2))
+                    radial_bin = makeRingMaskBin(psd_data.value,radial_mask)
+                    mean_bin.append(np.mean(radial_bin))
                     k_val.append(self.radialFreq[r].value)
                 r+=ring_width # iterate to the next r value in the loop
-
-        self.k_radial = k_val * self.radialFreq.unit
-        self.psd_radial_norm = mean_psd * self.psd_norm.unit
-        self.psd_radial_cal = mean_psd2 * self.psd_cal.unit
-    
-    def calc_psd_rms(self, tgt_low, tgt_high, psd_set='cal', print_rms=False, print_kloc = False):
-        # initialize which PSD to use
-        if psd_set=='cal': # default
-            pwr_opt = self.psd_cal
-        elif psd_set=='norm':
-            pwr_opt = self.psd_norm
-        elif psd_set=='raw':
-            pwr_opt = self.psd_raw
-        else:
-            raise Exception('Invalid PSD type. Choose cal, norm, or raw.')
-            pwr_opt=self.psd_cal
+                
+        k_radial = k_val * self.radialFreq.unit
+        psd_radial = mean_bin * psd_data.unit
         
+        return (k_radial, psd_radial)
+    
+    def calc_rms_set(self, kmid_ll, khigh_ll, pwr_opt):
+        # Calculate the RMS based on the k-parameter limits
+        self.kmid_ll = kmid_ll
+        self.khigh_ll = khigh_ll
+        self.rms_tot = self.calc_psd_rms(tgt_low=self.k_min, tgt_high=self.k_max,
+                                     pwr_opt=pwr_opt)
+        self.rms_l = self.calc_psd_rms(tgt_low=self.k_min, tgt_high=kmid_ll,
+                                     pwr_opt=pwr_opt)
+        self.rms_m = self.calc_psd_rms(tgt_low=kmid_ll, tgt_high=khigh_ll,
+                                     pwr_opt=pwr_opt)
+        self.rms_h = self.calc_psd_rms(tgt_low=khigh_ll, tgt_high=self.k_max,
+                                        pwr_opt=pwr_opt)
+        self.rms_mh = self.calc_psd_rms(tgt_low=kmid_ll, tgt_high=self.k_max,
+                                        pwr_opt=pwr_opt)
+    
+    def calc_psd_rms(self, tgt_low, tgt_high, pwr_opt, print_rms=False, print_kloc = False):       
         # find the locations for k_low and k_high:
         (bin_low, k_low) = k_locate(self.radialFreq, tgt_low, print_change=print_kloc)
         (bin_high, k_high) = k_locate(self.radialFreq, tgt_high, print_change=print_kloc)
@@ -197,6 +242,29 @@ class surfPSD:
             print('Target range - k_low: {0:.3f} and k_high: {1:.3f}'.format(k_low, k_high))
             print('RMS value: {0:.4f}'.format(rms_val))
         return rms_val
+    
+    def write_psd_file(self, filename, psd_data, single_precision=True):
+        # Write header and cards for FITS
+        hdr = fits.Header()
+        hdr['name'] = (self.surf_name + ' PSD', 'filename')
+        hdr['psd_unit'] = (str(psd_data.unit), 'Units for PSD data')
+        hdr['wavelen'] = (self.wavelen.value, 'Wavelength used for optical test [{0}]'.format(self.wavelen.unit))
+        hdr['diam_ca'] = (self.diam_ca.value, 'Physical diameter for clear aperture [{0}]'.format(self.diam_ca.unit))
+        hdr['diam_pix'] = (self.npix_diam, 'Pixel diameter for clear aperture')
+        hdr['oversamp'] = (self.oversamp, 'Oversampled array size')
+        hdr['delta_k'] = (self.delta_k.value, 'Spatial frequency lateral resolution [{0}]'.format(self.delta_k.unit))
+        hdr['k_min'] = (self.k_min.value, 'Minimum spatial frequency boundary [{0}]'.format(self.k_min.unit))
+        hdr['k_max'] = (self.k_max.value, 'Maximum spatial frequency boundary [{0}]'.format(self.k_max.unit))
+        hdr['rms_tot'] = (self.rms_tot.value, 'Total RMS based on kmin and kmax [{0}]'.format(self.rms_tot.unit))
+        hdr['var_tot'] = (self.var.value, 'Total variance for optical surface [{0}]'.format(self.var.unit))
+        
+        if single_precision==True:
+            write_data = np.single(psd_data.value)
+        else:
+            write_data = psd_data.value
+        
+        # Write to FITS file
+        fits.writeto(filename, write_data, hdr, overwrite=True)
 ##########################################
 # MODELING
 '''
