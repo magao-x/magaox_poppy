@@ -18,6 +18,9 @@ from astropy import units as u
 # drawing for the apertures
 from skimage.draw import draw
 
+# add in datafiles modular code
+import datafiles as dfx
+
 ##########################################
 # surfPSD Class definition
 
@@ -117,6 +120,7 @@ class surfPSD:
     def calc_psd(self, oversamp, kmid_ll = 0.1/u.mm, khigh_ll=1/u.mm, var_unit = u.nm):
         self.oversamp = oversamp
         # note - data MUST be even, square, and efficiently filled.
+        # does it still need to be even?
         optic = self.data.value
 
         # calculate the mean and variance of the active region of data
@@ -128,12 +132,22 @@ class surfPSD:
         # Subtract the mean from the data
         ap_submean = (ap_active - ap_avg) * self.mask
 
-        # build the Hann 2D window
-        hannWin = han2d((self.npix_diam, self.npix_diam)) * self.mask
+        # build the Hann 2D window and apply to surface
+        hannWin = han2d((self.npix_diam, self.npix_diam)) * ap_submean 
+        
+        # before zero padding to FT, check that all the data is good inside the mask.
+        # Otherwise, interpolate.
+        n_badpix = np.where(np.isnan(hannWin)==True)[0].shape[0]
+        if n_badpix > 0:
+            print('Bad data present: {0} nan pixels. Interpolating to fix.'.format(n_badpix))
+            ap_clear = copy.copy(self.mask)
+            ap_clear[np.where(np.isnan(hannWin)==True)] = 1 # cover up nan holes
+            ap_coords = np.where(ap_clear==1)
+            hannWin = dfx.fill_surface(hannWin, self.mask, ap_clear, ap_coords)
         
         # zero pad to oversample then start taking FT's
         pad_side = int((self.oversamp - self.mask.shape[0])/2)
-        optic_ovs = np.pad(hannWin*ap_submean, pad_side, pad_with)
+        optic_ovs = np.pad(hannWin, pad_side, pad_with)
         FT_wf = np.fft.fftshift(np.fft.fft2(optic_ovs)) # this comes out unitless
         self.psd_raw = np.real(FT_wf*np.conjugate(FT_wf))/(self.data.unit**2)
         
@@ -222,7 +236,9 @@ class surfPSD:
         self.rms_mh = self.calc_psd_rms(tgt_low=kmid_ll, tgt_high=self.k_max,
                                         pwr_opt=pwr_opt)
     
-    def calc_psd_rms(self, tgt_low, tgt_high, pwr_opt, print_rms=False, print_kloc = False):       
+    def calc_psd_rms(self, tgt_low, tgt_high, pwr_opt, print_rms=False, print_kloc = False):
+        if tgt_low > tgt_high:
+            raise Exception('Spatial Frequency region not possible; tgt_low ({0:.3f}) greater than tgt_high ({1:.3f})'.format(tgt_low, tgt_high))
         # find the locations for k_low and k_high:
         (bin_low, k_low) = k_locate(self.radialFreq, tgt_low, print_change=print_kloc)
         (bin_high, k_high) = k_locate(self.radialFreq, tgt_high, print_change=print_kloc)
@@ -283,63 +299,104 @@ radial_k        - 1/mm (spatial frequency)
 radial_psd      - mm^2 nm^2 (1/spatial frequency ^2 * variance = mm^2 nm^2)
 bsr        - mm^2 nm^2 (same units as psd)
 '''
-def calc_beta(alpha, k_min, k_max, rms_surf):
-    # unit check and fix
-    if k_min.unit != (1/u.mm):  k_min.to(1/u.mm)
-    if k_max.unit != (1/u.mm):  k_max.to(1/u.mm)
-    if rms_surf.unit != u.nm:   rms_surf.to(u.nm)
+class model:
+    def __init__(self, region_num, ind_start, ind_end, k_radial, p_radial, k_min, k_max):
+        self.region_num = region_num
+    #def set_data(self, k_data, p_data):
+        self.k_radial = k_radial
+        self.k_data = k_radial[ind_start:ind_end+1]
+        self.p_data = p_radial[ind_start:ind_end+1]
+        self.k_min = k_min
+        self.k_max = k_max
     
-    # calculate beta
-    if alpha==2:
-        beta = (rms_surf**2) / (2*np.pi*np.log(k_max/k_min))
-    else: # when alpha not 2
-        beta = (rms_surf**2) * (alpha - 2) / (2*np.pi*( (k_min**(2-alpha)) - (k_max**(2-alpha)) ) )
-    return beta # units safe
-
-def calc_bsr(rms_sr, k_min, k_max):
-    # unit check and fix
-    if k_min.unit != (1/u.mm):  k_min.to(1/u.mm)
-    if k_max.unit != (1/u.mm):  k_max.to(1/u.mm)
-    if rms_sr.unit != u.nm:     rms_sr.to(u.nm)
-
-    return (rms_sr**2) / (np.pi * (k_max**2 - k_min**2)) # units safe
-
-def solve_model_lsf(radial_psd, radial_k):
-    # unit check and fix
-    if radial_psd.unit != (u.mm**2 * u.nm**2):  radial_psd.to(u.mm**2 * u.nm**2)
-    if radial_k.unit != (1/u.mm):               radial_k.to(1/u.mm)
-    
-    # linearized equation from PSD in form y = mx + c
-    y = np.log10(radial_psd.value)
-    x = np.log10(radial_k.value)
-    
-    # linear least square fit
-    A = np.vstack([x, np.ones(len(x))]).T
-    m,c = np.linalg.lstsq(A, y)[0] # y = mx + c linear equation
-    alpha_lsf = -1*m # unitless naturally
-    beta_lsf = 10**(c) * (u.nm**2) * (u.mm**(-alpha_lsf+2))
-    
-    return (alpha_lsf, beta_lsf) #units applied
-
-def calc_model_simple(radial_k, alpha, beta):
-    # for OAPs and flat mirrors
-    # unit check and fix
-    if radial_k.unit != (1/u.mm):   radial_k.to(1/u.mm)
-    if beta.unit != (u.nm**2 * u.mm**(-alpha+2)):   beta.to(u.nm**2 * u.mm**(-alpha+2))
+    def solve_lsf(self):
+        # unit check and fix
+        if self.p_data.unit != (u.mm**2 * u.nm**2):
+            self.p_data.to(u.mm**2 * u.nm**2)
+        if self.k_data.unit != (1/u.mm):
+            self.k_data.to(1/u.mm)
         
-    return beta/(radial_k**alpha) # units safe
-
-def calc_model_full(radial_k, alpha, beta, L0, lo, bsr = 0 * u.nm**2 * u.mm**2):
-    # only useful for OAPs
-    # unit check and fix
-    if radial_k.unit != (1/u.mm):   radial_k.to(1/u.mm)
-    if beta.unit != (u.nm**2 * u.mm**(-alpha+2)):   beta.to(u.nm**2 * u.mm**(-alpha+2))
-    if L0.unit != u.mm: L0.to(u.mm)
-    if bsr.unit != (u.nm**2 * u.mm**2): bsr.to(u.nm**2 * u.mm**2)
+        # linearized equation from PSD in form y = mx + c
+        y = np.log10(self.p_data.value)
+        x = np.log10(self.k_data.value)
         
-    # exponential cannot handle units, so calculate without units then apply at the end.
-    pk = (beta.value * np.exp(-(radial_k.value*lo)**2) / ( ( (L0.value**-2) + (radial_k.value**2) ) ** (alpha*.5))) + bsr.value
-    return pk * bsr.unit
+        # linear least square fit
+        A = np.vstack([x, np.ones(len(x))]).T
+        m,c = np.linalg.lstsq(A, y)[0] # y = mx + c linear equation
+        self.alpha = -1*m # unitless naturally
+        self.beta = 10**(c) * (u.nm**2) * (u.mm**(-self.alpha+2))
+    
+    def calc_model_simple(self):
+        # for OAPs and flat mirrors
+        # unit check and fix
+        if self.k_data.unit != (1/u.mm):
+            self.k_data.to(1/u.mm)
+        if self.beta.unit != (u.nm**2 * u.mm**(-self.alpha+2)):
+            self.beta.to(u.nm**2 * u.mm**(-self.alpha+2))
+            
+        self.model_simple =  self.beta/(self.k_data**self.alpha) # units safe
+    
+    def expand_k(self, delta_k, n_high_k):
+        # Expand spatial freq range to see where the model takes us with the data
+        # concatenate array for front
+        k_range = self.k_radial
+        last = np.min(k_range) - delta_k # initialize
+        front_fill = []
+        while last.value>delta_k.value:
+            front_fill.append(last.value)
+            last = last - delta_k
+        front_k = np.hstack((np.asarray(front_fill[::-1]), k_range.value))
+
+        # concatenate array for end
+        nex_pts = 800
+        dkr = (k_range[1] - k_range[0]).value
+        dkr_mult = 3
+        rear_fill = [(np.amax(k_range.value) + (dkr*dkr_mult))]
+        for i in range(1, n_high_k): 
+            rear_fill.append(rear_fill[i-1] + (dkr*dkr_mult))
+        
+        self.k_extend = np.hstack((front_k, np.asarray(rear_fill)))*k_range.unit
+    
+    def calc_bsr(self, rms_sr):
+        # unit check and fix
+        if self.k_min.unit != (1/u.mm):  
+            self.k_min.to(1/u.mm)
+        if self.k_max.unit != (1/u.mm):  
+            self.k_max.to(1/u.mm)
+        if rms_sr.unit != u.nm:     
+            rms_sr.to(u.nm)
+        self.rms_sr = rms_sr
+
+        self.bsr = (rms_sr**2) / (np.pi * (self.k_max**2 - self.k_min**2)) # units safe
+    
+    def calc_model_full(self, L0, lo, k_range):
+        # only useful for OAPs
+        # unit check and fix
+        if L0.unit != u.mm: 
+            L0.to(u.mm)
+        if self.bsr.unit != (u.nm**2 * u.mm**2): 
+            self.bsr.to(u.nm**2 * u.mm**2)
+        self.L0 = L0
+        self.lo = lo
+            
+        # exponential cannot handle units, so calculate without units then apply at the end.
+        pk = (self.beta.value * np.exp(-(k_range.value*lo)**2) / ( ( (L0.value**-2) + (k_range.value**2) ) ** (self.alpha*.5))) + self.bsr.value
+        self.model_full =  pk * self.bsr.unit
+        
+    def calc_beta(self, alpha, rms_surf):
+        # unit check and fix
+        if self.k_min.unit != (1/u.mm):  
+            self.k_min.to(1/u.mm)
+        if self.k_max.unit != (1/u.mm):  
+            self.k_max.to(1/u.mm)
+        if rms_surf.unit != u.nm:   
+            rms_surf.to(u.nm)
+        # calculate beta
+        if alpha==2:
+            beta = (rms_surf**2) / (2*np.pi*np.log(self.k_max/self.k_min))
+        else: # when alpha not 2
+            beta = (rms_surf**2) * (alpha - 2) / (2*np.pi*( (self.k_min**(2-alpha)) - (self.k_max**(2-alpha)) ) )
+        self.beta_calc = beta # units safe
 
 ###########################################
 # INTERPOLATION
