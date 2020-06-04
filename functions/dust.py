@@ -40,8 +40,11 @@ class dust:
         #med_flat = np.zeros_like(mean_flat)
         for k in range(0, self.size*self.size):
             pix_data = self.flat_data_mask[:,k]
-            #pix_bin = pix_data[~np.isnan(pix_data)]
-            mean_flat[k] = np.mean(pix_data[~np.isnan(pix_data)])
+            pix_bin = pix_data[~np.isnan(pix_data)]
+            if len(pix_bin) != 0: # if not all nan values
+                mean_flat[k] = np.mean(pix_bin)
+            else:
+                mean_flat[k] = np.nan # not sure if this will work
             #med_flat[k] = np.median(pix_bin)
         self.mean_surf = mean_flat.reshape((self.size, self.size))
         #self.med_surf = med_flat.reshape((self.size, self.size))
