@@ -1,0 +1,52 @@
+# MagAO-X POPPY Optical Prescription Listing,,,,,,,,,,,
+# Zemax Model: Tele2.1 Relay1.0 Peri2.0 ADC1.1a OFD11.1.zmx by Oli Durney,,,,,,,,,,,
+##########################,,,,,,,,,,,
+# Element Types,,,,,,,,,,,
+# pupil (pupil file),,,,,,,,,,,
+# mirror (powered FL > 0: telescope or OAP , FL = 0 : flat),,,,,,,,,,
+# fplane (focal plane),,,,,,,,,,,
+# DM: Tweeter and Woofer,,,,,,,,,,,
+# vAPP (coronagraph),,,,,,,,,,,
+# sci (Science camera),,,,,,,,,,,
+# distance = free space propagation distance defined as distance from previous optic, source: RAG values from Zemax MFE,,,,,,,,,,
+# surf PSD (PSD file reference name, must be FITS file),,,,,,,,,,
+# optic type (OPD or trans),,,,,,,,,,,
+# opdunit (OPD units),,,,,,,,,,,
+##########################,,,,,,,,,,,
+# Optical Element Number,Name,Type,Focal Length [m],Distance [m],Radius [m],surf PSD folder,surf PSD filename,optic type,OPD unit,Correction [m],Comment
+0,pupil,pupil,0,0,0,data/mask/,MagAOX_f11_pupil_512_unmasked,trans,none,,
+1,M-1,mirror,8.128,0,3.25,data/mask/,ClayM1_0mask_meters_new,opd,meters,,not PSD but M1 surface map
+2,M-2,mirror,1.43273,9.72205,0.6695,,psd_m2,opd,nanometers,,
+3,M-3,mirror,0,9.02279,0.439879,,psd_m3,opd,nanometers,,
+4,F-1,mirror,0,4.889516,0.0125,,psd_fm1in_glue,opd,nanometers,,
+5,K-1,mirror,0,0.02,0.0125,,psd_fm1in_glue,opd,nanometers,,
+6,K-2,mirror,0,0.025,0.00625,,psd_fm0.5in_glue,opd,nanometers,,
+7,K-3,mirror,0,0.025,0.0095,,psd_fm19mm_glue,opd,nanometers,,
+8,F11,fplane,0,0.174917259618962,none,none,none,none,none,0.15491726,Distance includes correction 
+9,F-2,mirror,0,0.033204,0.0125,,psd_fm1in,opd,nanometers,,PSM n2
+10,OAP-0,mirror,0.14355,0.110497,0.025,,psd_oap,opd,nanometers,,
+11,Woofer,DM,0,0.144693,0.025,,none,none,none,,
+12,OAP-1,mirror,0.21088,0.210726,0.025,,psd_oap,opd,nanometers,,
+13,F-3,mirror,0,0.069174,0.0125,,psd_fm1in,opd,nanometers,,may be named FM1
+14,F16,fplane,0,0.141705556104323,none,none,none,none,none,0.0001435561,Distance includes correction 
+15,OAP-2,mirror,0.3038,0.303808,0.025,,psd_oap,opd,nanometers,,
+16,Tweeter,DM,0,0.303808,0.025,,none,opd,meters,,code overwrites surf PSD
+17,OAP-3,mirror,1.0716,1.071599,0.025,,psd_oap,opd,nanometers,,
+18,F-4,mirror,0,0.412515,0.025,,psd_fm2in,opd,nanometers,,top bench periscope
+19,F-5,mirror,0,0.5737,0.025,,psd_fm2in,opd,nanometers,,bottom bench periscope
+20,F57,fplane,0,0.085371472817382,none,none,none,none,none,-7.75E-05,Distance includes correction 
+21,OAP-4,mirror,0.513,0.513026,0.025,,psd_oap,opd,nanometers,,
+22,NCP_DM,DM,0,0.47666,0.025,,none,opd,nanometers,,not in pupil plane
+23,vAPP-trans,vapp,0,0.03634,0.004440554466516,data/coronagraph/,none,trans,none,,code overwrites surf PSD
+24,vAPP-opd,vapp,0,0,0.004440554466516,data/coronagraph/,none,opd,meters,,code overwrites surf PSD
+25,F-6,mirror,0,0.19427,0.0125,,psd_fm1in,,,,L/10 silver mirror not in set
+26,OAP-5-1,mirror,0.621,0.47666,0.025,,psd_oap,opd,nanometers,,
+27,F-7,mirror,0,0.471013,0.025,,psd_fm2in,opd,nanometers,,
+28,F69,fplane,0,0.149936876871199,none,none,none,none,none,-7.11E-05,Distance includes correction 
+29,OAP-5-2,mirror,0.621,0.620969,0.025,,psd_oap,opd,nanometers,,
+30,LyotPlane,lyot,0,0.621031,none,,none,none,,,
+31,F-11,mirror,0,0.231596,0.025,,psd_fm2in,opd,nanometers,,
+32,OAP-5-3,mirror,0.621,0.389425,0.025,,psd_oap,opd,nanometers,,
+33,F-12,mirror,0,0.401103,0.025,,psd_fm2in,opd,nanometers,,
+34,F69Sci,sci,0,0.219846903053679,none,none,none,none,none,-1.21E-05,Distance includes correction 
+35,noneRemoved,ref,0,0,0,none,none,none,none,,Reference case
