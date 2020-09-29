@@ -21,7 +21,7 @@ for nstep in range(0, tot_step+1):
     opt_side = np.shape(opt_data)[0]
     
     # open the associated dust mask
-    opt_mask = fits.open(file_dir+'flat_1in_ca80_n{0}_step{1}_mask_LS.fits'.format(nfm, nstep))[0]
+    opt_mask = fits.open(file_dir+'flat_1in_ca80_n{0}_step{1}_mask_LS.fits'.format(nfm, nstep))[0].data
     
     # do the scargle
     psd_name = 'lspsd_fm_1in_n{0}_step{1}'.format(nfm, nstep)
