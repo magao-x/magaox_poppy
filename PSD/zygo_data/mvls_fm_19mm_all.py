@@ -10,23 +10,24 @@ from model_kit import psd_functions as psd
 
 file_dir = 'flat_mirrors/fixed_fits/'
 psd_folder = 'flat_mirrors/mvls_psd/'
-tot_fm = 2
-tot_step = 6
+tot_fm = 1
+tot_step = 4
+nt = 3 # number of zernike terms being corrected
 flat_label = '19mm'
 
 for nfm in range(0, tot_fm):
     for nstep in range(0, tot_step):
         # open the data file
-        opt_fits = fits.open(file_dir+'flat_{0}_n{1}_80CA_step{2}_zern_surf.fits'.format(flat_label, nfm+1, nstep))[0]
+        opt_fits = fits.open(file_dir+'flat_{0}_n{1}_80CA_step{2}_z{3}_surf.fits'.format(flat_label, nfm+1, nstep, nt))[0]
         opt_data = (opt_fits.data * u.micron).to(u.nm)
-        dx = (opt_fits.header['LATRES'] * u.m).to(u.mm)
+        dx = (opt_fits.header['LATRES'] * u.m)#.to(u.mm)
         opt_side = np.shape(opt_data)[0]
         
         # open the associated dust mask
-        opt_mask = fits.open(file_dir+'flat_{0}_n{1}_80CA_step{2}_dust_mask.fits'.format(flat_label, nfm+1, nstep))[0].data
+        opt_mask = fits.open(file_dir+'flat_{0}_n{1}_80CA_step{2}_bigdust_mask.fits'.format(flat_label, nfm+1, nstep))[0].data
         
         # do the scargle
-        psd_name = 'lspsd_fm_{0}_n{1}_step{2}_zc'.format(flat_label, nfm+1, nstep)
+        psd_name = 'lspsd_fm_{0}_n{1}_step{2}_z{3}'.format(flat_label, nfm+1, nstep, nt)
         print('Optic test: {0}'.format(psd_name))
         lspsd, lspsd_parms = psd.mvls_psd(data=opt_data, mask=opt_mask, dx=dx,
                                         k_side=opt_side, print_update=True,
