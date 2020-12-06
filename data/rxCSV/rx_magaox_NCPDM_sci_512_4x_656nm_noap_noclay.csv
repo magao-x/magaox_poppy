@@ -1,0 +1,52 @@
+# MagAO-X POPPY Optical Prescription Listing,,,,,,,,,,,,
+# Zemax Model: Tele2.1 Relay1.0 Peri2.0 ADC1.1a OFD11.1.zmx by Oli Durney,,,,,,,,,,,,
+##########################,,,,,,,,,,,,
+# Element Types,,,,,,,,,,,,
+# pupil (pupil file),,,,,,,,,,,,
+# mirror (powered FL > 0: telescope or OAP , FL = 0 : flat),,,,,,,,,,,
+# fplane (focal plane),,,,,,,,,,,,
+# DM: Tweeter and Woofer,,,,,,,,,,,,
+# vAPP (coronagraph),,,,,,,,,,,,
+# sci (Science camera),,,,,,,,,,,,
+# distance = free space propagation distance defined as distance from previous optic, source: RAG values from Zemax MFE,,,,,,,,,,,
+# surf PSD (PSD file reference name, must be FITS file),,,,,,,,,,,
+# optic type (OPD or trans),,,,0.210879776689274,,,,,,,,
+# opdunit (OPD units),,,,,,,,,,,,
+##########################,,,,,,,,,,,,
+# Optical Element Number,Name,Type,Focal Length [m],Distance [m],Radius [m],surf PSD folder,surf PSD filename,optic type,OPD unit,pixelscale,Correction [m],Comment
+0,pupil,pupil,0,0,3.25,none,none,trans,none,0.0126953125,,
+1,M-1,mirror,8.12765,0,-1,,none,opd,meters,0.0126953125,,not PSD but M1 surface map
+2,M-2,mirror,1.43141,9.72205,-1,,none,opd,meters,0.002490437734,,
+3,M-3,mirror,0,9.02279,-1,,none,opd,meters,0.0008856552898,,
+4,F-1,mirror,0,4.889516,-1,,psd_fm1in_glue,opd,meters,1.601192696E-05,,
+5,K-1,mirror,0,0.02,-1,,psd_fm1in_glue,opd,meters,1.245475131E-05,,
+6,K-2,mirror,0,0.025,-1,,psd_fm0p5in_glue,opd,meters,8.008281748E-06,,
+7,K-3,mirror,0,0.025,-1,,psd_fm19mm_glue,opd,meters,3.561812185E-06,,
+8,F11,fplane,0,0.020026068628202,-1,none,none,none,none,1.800937212E-06,2.60686282018696E-05,Distance includes fp correction 
+9,F-2,mirror,0,0.033204,-1,,psd_fm1in,opd,meters,5.905623015E-06,,PSM n2
+10,OAP-0,mirror,0.143701,0.110497,-1,,psd_oap,opd,meters,2.555848491E-05,,
+11,Woofer,DM,0,0.143701,-1,,psd_dmwoofer,opd,meters,2.555848491E-05,,
+12,OAP-1,mirror,0.21088,0.210726,-1,,psd_oap,opd,meters,2.555848491E-05,,
+13,F-3,mirror,0,0.069174,-1,,psd_fm1in,opd,meters,1.717464336E-05,,may be named FM1
+14,F16,fplane,0,0.141705776689274,-1,none,none,none,none,2.642857305E-06,0.000143776689274,Distance includes fp correction 
+15,OAP-2,mirror,0.3038,0.303808,-1,,psd_oap,opd,meters,3.682132204E-05,,
+16,Tweeter,DM,0,0.303808,-1,,none,opd,meters,3.682132204E-05,,code overwrites surf PSD
+17,OAP-3,mirror,1.0716,1.071599,-1,,psd_oap,opd,meters,3.682132204E-05,,
+18,F-4,mirror,0,0.412515,-1,,psd_fm2in,opd,meters,2.264677554E-05,,top bench periscope
+19,F-5,mirror,0,0.5737,-1,,psd_fm2in,opd,meters,2.933704908E-06,,bottom bench periscope
+20,F57,fplane,0,0.085378194741235,-1,none,none,none,none,9.321900414E-06,-7.08052587654606E-05,Distance includes fp correction 
+21,OAP-4,mirror,0.513,0.513026,-1,,psd_oap,opd,meters,1.762823366E-05,,
+22,NCP_DM,DM,0,0.47666,-1,,psd_dmncpc,opd,meters,1.762823366E-05,,not in pupil plane
+23,vAPP-trans,vapp,0,0.03634,0.004512827904882,data/coronagraph/,none,trans,none,1.762823366E-05,,code overwrites surf PSD
+24,vAPP-opd,vapp,0,0,0.004512827904882,data/coronagraph/,none,opd,meters,1.762823366E-05,,code overwrites surf PSD
+25,F-6,mirror,0,0.19427,-1,,psd_fm1in,opd,meters,1.762823366E-05,,L/10 silver mirror not in set
+26,OAP-5-1,mirror,0.621,0.42673,-1,,psd_oap,opd,meters,1.762823366E-05,,
+27,F-7,mirror,0,0.471013,-1,,psd_fm2in,opd,meters,4.257115909E-06,,
+28,F69,fplane,0,0.149961780666612,-1,none,none,none,none,1.128337618E-05,-4.62193333881089E-05,Distance includes fp correction 
+29,OAP-5-2,mirror,0.621,0.620969,-1,,psd_oap,opd,meters,1.762806825E-05,,
+30,LyotPlane,lyot,0,0.621031,-1,none,none,none,meters,1.762806825E-05,,
+31,F-11,mirror,0,0.231596,-1,,psd_fm2in,opd,meters,1.762806825E-05,,
+32,OAP-5-3,mirror,0.621,0.389425,-1,,psd_oap,opd,meters,1.762806825E-05,,
+33,F-12,mirror,0,0.401103,-1,,psd_fm2in,opd,meters,6.241662693E-06,,
+34,F69Sci,sci,0,0.219871789797395,-1,none,none,none,none,1.128348222E-05,1.2789797395385E-05,Distance includes fp correction 
+35,noneRemoved,ref,0,0,-1,none,none,none,none,1.128348222E-05,,Reference case for individual optic analysis
